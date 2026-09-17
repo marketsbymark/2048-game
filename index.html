@@ -7,6 +7,12 @@
 <meta name="theme-color" content="#faf8ef" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1b1917" media="(prefers-color-scheme: dark)">
 <title>2048</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="2048">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23edc22e'/%3E%3Ctext x='32' y='42' font-family='Helvetica,Arial,sans-serif' font-weight='700' font-size='26' text-anchor='middle' fill='%23f9f6f2'%3E2048%3C/text%3E%3C/svg%3E">
 <style>
   :root {
@@ -444,6 +450,10 @@
 
   // Programmatic API for agents / automation (see README):
   //   ui.move('left') -> boolean, ui.state() -> snapshot, ui.newGame(), ui.undo(), ui.keepGoing()
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+
   window.game = game;
   window.ui = {
     move: move, undo: undo, newGame: newGame, keepGoing: keepGoing,
