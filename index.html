@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf8ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1917" media="(prefers-color-scheme: dark)">
+<title>2048</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23edc22e'/%3E%3Ctext x='32' y='42' font-family='Helvetica,Arial,sans-serif' font-weight='700' font-size='26' text-anchor='middle' fill='%23f9f6f2'%3E2048%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #faf8ef;
+    --fg: #776e65;
+    --fg-soft: #9a9088;
+    --board: #bbada0;
+    --cell: rgba(238, 228, 218, 0.35);
+    --box: #bbada0;
+    --box-label: #eee4da;
+    --button: #8f7a66;
+    --button-hover: #9f8b77;
+    --button-fg: #f9f6f2;
+    --overlay: rgba(250, 248, 239, 0.72);
+    --overlay-win: rgba(237, 194, 46, 0.55);
+    --rule: #d8d4d0;
+    --tile-light-fg: #776e65;
+    --tile-dark-fg: #f9f6f2;
+    --gap: 14px;
+    --radius: 6px;
+    --slide: 100ms;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1b1917;
+      --fg: #e9e2d8;
+      --fg-soft: #a39b91;
+      --board: #3b3631;
+      --cell: rgba(255, 255, 255, 0.07);
+      --box: #2e2a26;
+      --box-label: #b4aba0;
+      --button: #8f7a66;
+      --button-hover: #a08b76;
+      --overlay: rgba(27, 25, 23, 0.72);
+      --overlay-win: rgba(237, 194, 46, 0.45);
+      --rule: #3b3631;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1b1917; --fg: #e9e2d8; --fg-soft: #a39b91; --board: #3b3631;
+    --cell: rgba(255, 255, 255, 0.07); --box: #2e2a26; --box-label: #b4aba0;
+    --button: #8f7a66; --button-hover: #a08b76; --overlay: rgba(27, 25, 23, 0.72);
+    --overlay-win: rgba(237, 194, 46, 0.45); --rule: #3b3631;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Clear Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Inter, Arial, sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+    overflow-x: hidden;
+  }
+  .app { width: 100%; max-width: 500px; }
+
+  /* ---- Header ---- */
+  .heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  h1 { font-size: clamp(48px, 16vw, 80px); font-weight: 700; margin: 0; line-height: 1; letter-spacing: -0.02em; }
+  .scores { display: flex; gap: 6px; }
+  .score-box {
+    position: relative; min-width: 84px; padding: 22px 16px 8px; text-align: center;
+    background: var(--box); color: #fff; border-radius: var(--radius);
+    font-size: 24px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .score-box small {
+    position: absolute; top: 9px; left: 0; right: 0; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--box-label);
+  }
+  .score-add {
+    position: absolute; right: 12px; top: 20px; font-size: 24px; font-weight: 700;
+    color: var(--fg); opacity: 0; pointer-events: none;
+    animation: move-up 600ms ease-out both;
+  }
+  @keyframes move-up { 0% { transform: translateY(-6px); opacity: 1; } 100% { transform: translateY(-54px); opacity: 0; } }
+
+  .above { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+  .intro { margin: 0; font-size: 16px; line-height: 1.35; color: var(--fg); }
+  .actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .btn {
+    appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 16px;
+    background: var(--button); color: var(--button-fg); border-radius: var(--radius);
+    height: 40px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center;
+    transition: background 120ms ease, transform 120ms ease, opacity 120ms ease;
+    -webkit-tap-highlight-color: transparent; white-space: nowrap;
+  }
+  .btn:hover { background: var(--button-hover); }
+  .btn:active { transform: scale(0.97); }
+  .btn:focus-visible { outline: 3px solid #edc22e; outline-offset: 2px; }
+  .btn[disabled] { opacity: 0.4; cursor: default; }
+  .btn-ghost { background: transparent; color: var(--fg); box-shadow: inset 0 0 0 2px var(--board); }
+  .btn-ghost:hover { background: var(--cell); }
+
+  /* ---- Board ---- */
+  .board {
+    position: relative; margin-top: 24px; width: 100%; aspect-ratio: 1 / 1;
+    padding: var(--gap); background: var(--board); border-radius: 10px;
+    touch-action: none; user-select: none; -webkit-user-select: none; cursor: default;
+    box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.35);
+  }
+  .board.nudge-left  { animation: nudge-x 140ms ease; --nx: -5px; }
+  .board.nudge-right { animation: nudge-x 140ms ease; --nx: 5px; }
+  .board.nudge-up    { animation: nudge-y 140ms ease; --ny: -5px; }
+  .board.nudge-down  { animation: nudge-y 140ms ease; --ny: 5px; }
+  @keyframes nudge-x { 50% { transform: translateX(var(--nx)); } }
+  @keyframes nudge-y { 50% { transform: translateY(var(--ny)); } }
+
+  .cells { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: var(--gap); width: 100%; height: 100%; }
+  .cells div { background: var(--cell); border-radius: var(--radius); }
+
+  .tiles { position: absolute; inset: 0; z-index: 2; }
+  .tile {
+    position: absolute; top: 0; left: 0; width: var(--cell-size); height: var(--cell-size);
+    transition: transform var(--slide) ease-in-out;
+    will-change: transform;
+  }
+  .board.no-transition .tile { transition: none; }
+  .tile-inner {
+    width: 100%; height: 100%; border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: calc(var(--cell-size) * 0.5); line-height: 1;
+    background: #eee4da; color: var(--tile-light-fg);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .tile[data-len="3"] .tile-inner { font-size: calc(var(--cell-size) * 0.42); }
+  .tile[data-len="4"] .tile-inner { font-size: calc(var(--cell-size) * 0.33); }
+  .tile[data-len="5"] .tile-inner { font-size: calc(var(--cell-size) * 0.27); }
+  .tile[data-len="6"] .tile-inner { font-size: calc(var(--cell-size) * 0.22); }
+
+  .tile-2 .tile-inner    { background: #eee4da; }
+  .tile-4 .tile-inner    { background: #ede0c8; }
+  .tile-8 .tile-inner    { background: #f2b179; color: var(--tile-dark-fg); }
+  .tile-16 .tile-inner   { background: #f59563; color: var(--tile-dark-fg); }
+  .tile-32 .tile-inner   { background: #f67c5f; color: var(--tile-dark-fg); }
+  .tile-64 .tile-inner   { background: #f65e3b; color: var(--tile-dark-fg); }
+  .tile-128 .tile-inner  { background: #edcf72; color: var(--tile-dark-fg); box-shadow: 0 0 30px 10px rgba(243,215,116,.24), inset 0 0 0 1px rgba(255,255,255,.14); }
+  .tile-256 .tile-inner  { background: #edcc61; color: var(--tile-dark-fg); box-shadow: 0 0 30px 10px rgba(243,215,116,.32), inset 0 0 0 1px rgba(255,255,255,.19); }
+  .tile-512 .tile-inner  { background: #edc850; color: var(--tile-dark-fg); box-shadow: 0 0 30px 10px rgba(243,215,116,.40), inset 0 0 0 1px rgba(255,255,255,.24); }
+  .tile-1024 .tile-inner { background: #edc53f; color: var(--tile-dark-fg); box-shadow: 0 0 30px 10px rgba(243,215,116,.48), inset 0 0 0 1px rgba(255,255,255,.29); }
+  .tile-2048 .tile-inner { background: #edc22e; color: var(--tile-dark-fg); box-shadow: 0 0 30px 10px rgba(243,215,116,.56), inset 0 0 0 1px rgba(255,255,255,.33); }
+  .tile-super .tile-inner { background: #3c3a32; color: var(--tile-dark-fg); }
+
+  .tile-new .tile-inner    { animation: appear 200ms ease 100ms backwards; }
+  .tile-merged { z-index: 20; }
+  .tile-merged .tile-inner { animation: pop 200ms ease 100ms backwards; }
+  @keyframes appear { 0% { opacity: 0; transform: scale(0); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes pop { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+  /* ---- Overlay ---- */
+  .message {
+    position: absolute; inset: 0; z-index: 100; border-radius: 10px;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    background: var(--overlay); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    text-align: center; animation: fade-in 500ms ease both;
+  }
+  .message.show { display: flex; }
+  .message.won { background: var(--overlay-win); color: #f9f6f2; }
+  .message p { margin: 0; font-size: clamp(36px, 12vw, 60px); font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+  .message .sub { font-size: 16px; font-weight: 400; opacity: 0.85; margin-top: -10px; }
+  .message .lower { display: flex; gap: 10px; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---- Footer ---- */
+  .explain { margin-top: 44px; font-size: 16px; color: var(--fg); }
+  .explain strong.k { text-transform: uppercase; }
+  hr { border: 0; border-bottom: 1px solid var(--rule); margin: 22px 0; }
+  .credit { font-size: 14px; color: var(--fg-soft); }
+  .credit a { color: inherit; }
+  kbd { font: inherit; font-size: 13px; padding: 1px 6px; border-radius: 4px; background: var(--cell); box-shadow: inset 0 0 0 1px var(--rule); }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 420px) {
+    :root { --gap: 10px; }
+    body { font-size: 15px; }
+    .score-box { min-width: 70px; padding: 20px 10px 8px; font-size: 20px; }
+    .above { flex-direction: column; align-items: stretch; }
+    .actions { justify-content: stretch; }
+    .actions .btn { flex: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile { transition: none; }
+    .tile-new .tile-inner, .tile-merged .tile-inner, .message, .score-add { animation-duration: 1ms; animation-delay: 0ms; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="heading">
+    <h1>2048</h1>
+    <div class="scores">
+      <div class="score-box" id="score-box"><small>Score</small><span id="score">0</span></div>
+      <div class="score-box"><small>Best</small><span id="best">0</span></div>
+    </div>
+  </header>
+
+  <div class="above">
+    <p class="intro">Join the numbers and get to the <strong>2048 tile!</strong></p>
+    <div class="actions">
+      <button class="btn btn-ghost" id="undo" type="button" disabled aria-label="Undo last move">Undo</button>
+      <button class="btn" id="new-game" type="button">New Game</button>
+    </div>
+  </div>
+
+  <section class="board" id="board" aria-label="Game board" role="application">
+    <div class="cells" aria-hidden="true">
+      <div></div><div></div><div></div><div></div>
+      <div></div><div></div><div></div><div></div>
+      <div></div><div></div><div></div><div></div>
+      <div></div><div></div><div></div><div></div>
+    </div>
+    <div class="tiles" id="tiles" aria-hidden="true"></div>
+    <div class="message" id="message" role="dialog" aria-modal="true" aria-labelledby="message-title">
+      <p id="message-title"></p>
+      <p class="sub" id="message-sub"></p>
+      <div class="lower">
+        <button class="btn" id="keep-going" type="button">Keep going</button>
+        <button class="btn" id="retry" type="button">Try again</button>
+      </div>
+    </div>
+  </section>
+  <div class="sr-only" id="live" aria-live="polite"></div>
+
+  <p class="explain"><strong class="k">How to play:</strong> Use your <strong>arrow keys</strong> (or swipe) to move the tiles. When two tiles with the same number touch, they <strong>merge into one!</strong></p>
+  <hr>
+  <p class="credit">Keys: <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd>, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, <kbd>Z</kbd> undo.
+    Based on <a href="https://play2048.co" rel="noopener">2048</a> by Gabriele Cirulli. Runs fully offline; nothing leaves your device.</p>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var Game = window.Game2048;
+  var STORE_STATE = '2048.state', STORE_BEST = '2048.best';
+  var UNDO_LIMIT = 50;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var boardEl = $('board'), tilesEl = $('tiles'), scoreEl = $('score'), bestEl = $('best'), scoreBox = $('score-box');
+  var messageEl = $('message'), titleEl = $('message-title'), subEl = $('message-sub');
+  var undoBtn = $('undo'), liveEl = $('live');
+
+  var store = {
+    get: function (k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+    del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+
+  var game = new Game();
+  var undoStack = [];
+  var best = store.get(STORE_BEST) || 0;
+  var els = {};            // tile id -> element
+  var metrics = { pad: 0, gap: 0, cell: 0 };
+  var overlayTimer = null;
+
+  var saved = store.get(STORE_STATE);
+  if (saved && saved.tiles && !saved.over) { try { game.load(saved); } catch (e) { game.reset(); } }
+
+  // ---- Layout -------------------------------------------------------------
+  function layout() {
+    var cs = getComputedStyle(boardEl);
+    metrics.pad = parseFloat(cs.paddingLeft);
+    metrics.gap = parseFloat(cs.getPropertyValue('--gap'));
+    metrics.cell = (boardEl.clientWidth - 2 * metrics.pad - 3 * metrics.gap) / 4;
+    boardEl.style.setProperty('--cell-size', metrics.cell + 'px');
+    boardEl.classList.add('no-transition');          // reposition instantly, never slide on resize
+    for (var id in els) { var t = els[id]; place(t, +t.dataset.r, +t.dataset.c); }
+    void boardEl.offsetWidth;
+    boardEl.classList.remove('no-transition');
+  }
+  function place(el, r, c) {
+    el.dataset.r = r; el.dataset.c = c;
+    var x = metrics.pad + c * (metrics.cell + metrics.gap);
+    var y = metrics.pad + r * (metrics.cell + metrics.gap);
+    el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+  }
+  function createTile(t, extraClass) {
+    var el = document.createElement('div');
+    el.className = 'tile tile-' + (t.value > 2048 ? 'super' : t.value) + (extraClass ? ' ' + extraClass : '');
+    el.dataset.len = String(t.value).length;
+    el.dataset.id = t.id;
+    var inner = document.createElement('div');
+    inner.className = 'tile-inner';
+    inner.textContent = t.value;
+    el.appendChild(inner);
+    place(el, t.r, t.c);
+    tilesEl.appendChild(el);
+    els[t.id] = el;
+    return el;
+  }
+  function renderAll() {
+    tilesEl.innerHTML = '';
+    els = {};
+    game.tiles.forEach(function (t) { createTile(t); });
+    updateScore(0);
+  }
+
+  // ---- Score / status ----------------------------------------------------
+  function updateScore(gained) {
+    scoreEl.textContent = game.score;
+    if (game.score > best) { best = game.score; store.set(STORE_BEST, best); }
+    bestEl.textContent = best;
+    if (gained > 0) {
+      var add = document.createElement('div');
+      add.className = 'score-add';
+      add.textContent = '+' + gained;
+      scoreBox.appendChild(add);
+      setTimeout(function () { add.remove(); }, 650);
+    }
+  }
+  function showMessage(kind) {
+    clearTimeout(overlayTimer);
+    messageEl.classList.remove('show', 'won');
+    if (!kind) return;
+    var won = kind === 'won';
+    titleEl.textContent = won ? 'You win!' : 'Game over!';
+    subEl.textContent = won ? 'Score ' + game.score + ' · keep going for 4096?' : 'Score ' + game.score + ' · best ' + best;
+    $('keep-going').style.display = won ? '' : 'none';
+    messageEl.classList.toggle('won', won);
+    messageEl.classList.add('show');
+    liveEl.textContent = titleEl.textContent + ' ' + subEl.textContent;
+    setTimeout(function () { (won ? $('keep-going') : $('retry')).focus(); }, 50);
+  }
+  function persist() {
+    if (game.over) store.del(STORE_STATE); else store.set(STORE_STATE, game.serialize());
+    undoBtn.disabled = undoStack.length === 0;
+  }
+
+  // ---- Moves --------------------------------------------------------------
+  function nudge(dir) {
+    boardEl.classList.remove('nudge-up', 'nudge-down', 'nudge-left', 'nudge-right');
+    void boardEl.offsetWidth;
+    boardEl.classList.add('nudge-' + dir);
+  }
+  function move(dir) {
+    if (game.isTerminal()) return false;
+    var snapshot = game.serialize();
+    var res = game.move(dir);
+    if (!res.moved) { nudge(res.dir); return false; }
+
+    undoStack.push(snapshot);
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+
+    // 1. Slide every pre-existing tile to its destination (CSS transition).
+    var doomed = [];
+    res.tiles.forEach(function (t) {
+      var el = els[t.id];
+      if (!el) return;
+      place(el, t.to.r, t.to.c);
+      if (t.mergedInto) { doomed.push(el); delete els[t.id]; }
+    });
+    // 2. Merged tiles pop and new tile appears, both after the 100ms slide (animation-delay).
+    res.merged.forEach(function (m) { createTile(m, 'tile-merged'); });
+    if (res.spawned) createTile(res.spawned, 'tile-new');
+    setTimeout(function () { doomed.forEach(function (el) { el.remove(); }); }, 120);
+
+    updateScore(res.gained);
+    persist();
+    liveEl.textContent = 'Score ' + game.score;
+
+    if (res.won) overlayTimer = setTimeout(function () { showMessage('won'); }, 350);
+    else if (res.over) overlayTimer = setTimeout(function () { showMessage('over'); }, 700);
+    return true;
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    game.load(undoStack.pop());
+    showMessage(null);
+    renderAll();
+    persist();
+  }
+  function newGame() {
+    game.reset();
+    undoStack = [];
+    showMessage(null);
+    renderAll();
+    persist();
+    liveEl.textContent = 'New game';
+  }
+  function keepGoing() {
+    game.continueAfterWin();
+    showMessage(null);
+    persist();
+  }
+
+  // ---- Input --------------------------------------------------------------
+  var KEYS = {
+    ArrowUp: 'up', ArrowRight: 'right', ArrowDown: 'down', ArrowLeft: 'left',
+    w: 'up', d: 'right', s: 'down', a: 'left', k: 'up', l: 'right', j: 'down', h: 'left'
+  };
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    var key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (KEYS[key]) { e.preventDefault(); move(KEYS[key]); }
+    else if (key === 'z' || key === 'u') { e.preventDefault(); undo(); }
+    else if (key === 'Escape' && messageEl.classList.contains('show') && game.won && !game.over) keepGoing();
+  });
+
+  var touch = null;
+  boardEl.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    touch = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  });
+  boardEl.addEventListener('pointerup', function (e) {
+    if (!touch || e.pointerId !== touch.id) return;
+    var dx = e.clientX - touch.x, dy = e.clientY - touch.y;
+    touch = null;
+    var ax = Math.abs(dx), ay = Math.abs(dy);
+    if (Math.max(ax, ay) < 20) return;
+    move(ax > ay ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  });
+  boardEl.addEventListener('pointercancel', function () { touch = null; });
+
+  $('new-game').addEventListener('click', newGame);
+  $('retry').addEventListener('click', newGame);
+  $('keep-going').addEventListener('click', keepGoing);
+  undoBtn.addEventListener('click', undo);
+
+  if ('ResizeObserver' in window) new ResizeObserver(layout).observe(boardEl);
+  else window.addEventListener('resize', layout);
+
+  // ---- Boot ---------------------------------------------------------------
+  layout();
+  renderAll();
+  persist();
+  if (game.won && !game.keepPlaying) showMessage('won');
+
+  // Programmatic API for agents / automation (see README):
+  //   ui.move('left') -> boolean, ui.state() -> snapshot, ui.newGame(), ui.undo(), ui.keepGoing()
+  window.game = game;
+  window.ui = {
+    move: move, undo: undo, newGame: newGame, keepGoing: keepGoing,
+    state: function () { return game.getState(); },
+    grid: function () { return game.grid(); }
+  };
+})();
+</script>
+</body>
+</html>
